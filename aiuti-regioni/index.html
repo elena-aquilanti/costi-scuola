@@ -40,8 +40,9 @@ document.getElementById('v2key').innerHTML='<span style="font-weight:600;color:v
 const F9=DATA.f9.map(d=>({...d,v:d.tot/d.stud})).sort((a,b)=>b.v-a.v); const BY=Object.fromEntries(F9.map(d=>[d.reg,d]));
 const F9hi=F9[0], F9lo=F9[F9.length-1];
 document.querySelector('#kpi-x .t').textContent=`gli euro dello Stato per studente: ${f2(F9hi.v)} in ${F9hi.reg}, ${f2(F9lo.v)} in ${F9lo.reg}`;
-const MK=[[13000,'13mila'],[20000,'20mila'],[35000,'35mila'],[50000,'50mila']];
-function marks(){ const el=document.getElementById('marks'), w=vIsee.clientWidth, off=vIsee.offsetLeft; const W=el.clientWidth; el.innerHTML=MK.map(([v,t])=>{ const x=off+8+(w-16)*v/55000; return `<span style="left:${x}px;${x>W-26?'transform:translateX(-100%)':''}">${t}</span>`; }).join(''); }
+const MK=d3.range(0,50001,10000).map(v=>[v,v?f0(v/1000)+'mila':'0']);
+function marks(){ const el=document.getElementById('marks'), ri=vIsee.getBoundingClientRect(), rm=el.getBoundingClientRect(); if(!ri.width) return; const max=+vIsee.max, th=8;
+  el.innerHTML=MK.map(([v,t])=>{ const x=ri.left-rm.left+th+(ri.width-2*th)*v/max; const tr=x<12?'translateX(-2px)':x>rm.width-24?'translateX(-100%)':'translateX(-50%)'; return `<i style="left:${x}px"></i><span style="left:${x}px;transform:${tr}">${t}</span>`; }).join(''); }
 function regola(g){ if(g==="Valle d'Aosta") return "Libri gratuiti per tutti; aiuto per le spese con Isee fino a 21.052,64 euro"; if(g==="Trento") return "Libri in comodato per tutti (superiori: primi due anni)"; if(g==="Bolzano") return "Libri in comodato per tutti"; return `Aiuto fino a ${eur(SOGLIA[g])} euro di Isee${FISSO.has(g)?'':' · importo variabile'}`; }
 let proj, path, mapW=0, M1=null, rS=null, mode='both';
 const CS=['--blue-5','--blue-4','--blue-3','--blue-2','--blue-1'], BR=[20,30,40,55], cls=v=>CS[d3.bisectRight(BR,v)];
