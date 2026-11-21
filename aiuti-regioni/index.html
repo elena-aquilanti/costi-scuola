@@ -39,7 +39,7 @@ const clOf=g=>COMODATO[g]?SOGLIA_CL[4]:SOGLIA_CL.find(x=>SOGLIA[g]<=x.max);
 document.getElementById('v2key').innerHTML='<span style="font-weight:600;color:var(--fg)">La Regione aiuta fino a:</span>'+SOGLIA_CL.map(x=>`<span><i style="background:var(${x.c})"></i>${x.t}</span>`).join('')+`<span><i style="background:var(--grey-5)"></i>nessun aiuto al tuo Isee</span>`;
 const F9=DATA.f9.map(d=>({...d,v:d.tot/d.stud})).sort((a,b)=>b.v-a.v); const BY=Object.fromEntries(F9.map(d=>[d.reg,d]));
 const F9hi=F9[0], F9lo=F9[F9.length-1];
-document.querySelector('#kpi-x .t').textContent=`gli euro dello Stato per studente: ${f2(F9hi.v)} in ${F9hi.reg}, ${f2(F9lo.v)} in ${F9lo.reg}`;
+document.querySelector('#kpi-x .t').textContent=`a ogni studente in ${F9hi.reg}, in media, dal fondo dello Stato per i libri. In ${F9lo.reg} ne arrivano ${f0(F9lo.v)}`;
 const MK=d3.range(0,50001,10000).map(v=>[v,v?f0(v/1000)+'mila':'0']);
 function marks(){ const el=document.getElementById('marks'), ri=vIsee.getBoundingClientRect(), rm=el.getBoundingClientRect(); if(!ri.width) return; const max=+vIsee.max, th=8;
   el.innerHTML=MK.map(([v,t])=>{ const x=ri.left-rm.left+th+(ri.width-2*th)*v/max; const tr=x<12?'translateX(-2px)':x>rm.width-24?'translateX(-100%)':'translateX(-50%)'; return `<i style="left:${x}px"></i><span style="left:${x}px;transform:${tr}">${t}</span>`; }).join(''); }
@@ -99,7 +99,7 @@ function stopPlay(){ if(playing){cancelAnimationFrame(playing);playing=null;} pb
 pb.addEventListener('click',()=>{ if(playing){stopPlay();return;} pb.querySelector('span').textContent='Pausa'; let v=+vIsee.value>=54000?0:+vIsee.value; let last=performance.now();
   const step=t=>{ v=Math.min(55000,v+(t-last)*8); last=t; vIsee.value=Math.round(v/250)*250; draw2(false); if(v<55000) playing=requestAnimationFrame(step); else stopPlay(); }; playing=requestAnimationFrame(step); });
 vIsee.addEventListener('pointerdown',stopPlay);
-onView(mapEl,()=>{ const kx=document.getElementById('k-x'); kx.dataset.cur=0; countUp(kx,F9[0].v/F9[F9.length-1].v,1,'','<small>volte</small>',1000); if(RM) return; draw2(true); vIsee.value=0; draw2(false); setTimeout(()=>{ if(!playing) pb.click(); },3200); });
+onView(mapEl,()=>{ const kx=document.getElementById('k-x'); kx.dataset.cur=0; countUp(kx,F9hi.v,0,'','<small> euro</small>',1000); if(RM) return; draw2(true); vIsee.value=0; draw2(false); setTimeout(()=>{ if(!playing) pb.click(); },3200); });
 
 
 }).catch(e=>Radar.fail("main.radar",e));
