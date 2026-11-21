@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>La mappa degli aiuti per i libri – Radar QN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,400;6..72,700&display=swap">
+<link rel="stylesheet" href="../assets/radar.css">
+<link rel="stylesheet" href="../assets/costi.css">
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="../assets/radar.js"></script>
+<script src="../assets/costi.js"></script>
+</head>
+<body>
+<main class="radar" id="v2">
+  <header>
+    <h1 class="r-title">Aiuti per i libri: stesso Isee, regole diverse da regione a regione</h1>
+    <p class="r-sub">Colore: fino a quale Isee la Regione dà un contributo per libri o spese scolastiche. Cerchi: euro del fondo statale per studente. Anno 2026/27. Sposta il cursore o premi play</p>
+  </header>
+  <div class="row" style="margin-top:14px"><div class="seg" role="group" aria-label="Cosa mostrare"><button type="button" aria-pressed="true" data-m="both">Regioni + Stato</button><button type="button" aria-pressed="false" data-m="reg">Regioni</button><button type="button" aria-pressed="false" data-m="st">Stato</button></div></div>
+  <div id="isee-box"><div class="slider2"><button class="play" id="play2" type="button"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg><span>Play</span></button>
+    <label for="v-isee">Isee della famiglia: <span class="v" id="v-iseev"></span><input id="v-isee" type="range" min="0" max="55000" step="250" value="25000"></label></div>
+  <div class="marks" id="marks"></div></div>
+  <div class="kpirow"><div class="kpi blue" id="kpi-n"><div class="n" id="k-n">&nbsp;</div><div class="t" id="k-t"></div></div><div class="kpi red" id="kpi-x"><div class="n" id="k-x">&nbsp;</div><div class="t"></div></div></div>
+  <div class="chart" id="v2map"></div>
+  <div class="key" id="v2key"></div>
+  <div class="key" id="v2key2"></div>
+  <p class="notes">Il fondo statale è più alto dove ci sono più famiglie a basso reddito: è il criterio con cui lo Stato lo divide. Trento e Bolzano sono fuori dal riparto e danno i libri in comodato a tutti.</p>
+  <footer class="r-foot"><span>Fonte: atti e bandi di Regioni e Province autonome 2026/27; Mim, decreto 452/2026</span><span>Elaborazione Radar – QN</span></footer>
+</main>
+<script>
+Costi.load({geo:true}).then(DATA=>{
+/* ---------- 2 · una mappa: colore = Regione, cerchi = Stato ---------- */
+const GEO=DATA.geo21, vIsee=document.getElementById('v-isee'), mapEl=document.getElementById('v2map');
+const SOGLIA_CL=[{t:'13-14mila',max:14400,c:'--blue-5'},{t:'15-16mila',max:15800,c:'--blue-4'},{t:'20mila',max:20000,c:'--blue-3'},{t:'35-50mila',max:50000,c:'--blue-2'},{t:'per tutti (libri in comodato)',max:Infinity,c:'--blue-1'}];
+const clOf=g=>COMODATO[g]?SOGLIA_CL[4]:SOGLIA_CL.find(x=>SOGLIA[g]<=x.max);
+document.getElementById('v2key').innerHTML='<span style="font-weight:600;color:var(--fg)">La Regione aiuta fino a:</span>'+SOGLIA_CL.map(x=>`<span><i style="background:var(${x.c})"></i>${x.t}</span>`).join('')+`<span><i style="background:var(--grey-5)"></i>nessun aiuto al tuo Isee</span>`;
+const F9=DATA.f9.map(d=>({...d,v:d.tot/d.stud})).sort((a,b)=>b.v-a.v); const BY=Object.fromEntries(F9.map(d=>[d.reg,d]));
+const F9hi=F9[0], F9lo=F9[F9.length-1];
+document.querySelector('#kpi-x .t').textContent=`gli euro dello Stato per studente: ${f2(F9hi.v)} in ${F9hi.reg}, ${f2(F9lo.v)} in ${F9lo.reg}`;
+const MK=[[13000,'13mila'],[20000,'20mila'],[35000,'35mila'],[50000,'50mila']];
+function marks(){ const el=document.getElementById('marks'), w=vIsee.clientWidth, off=vIsee.offsetLeft; const W=el.clientWidth; el.innerHTML=MK.map(([v,t])=>{ const x=off+8+(w-16)*v/55000; return `<span style="left:${x}px;${x>W-26?'transform:translateX(-100%)':''}">${t}</span>`; }).join(''); }
+function regola(g){ if(g==="Valle d'Aosta") return "Libri gratuiti per tutti; aiuto per le spese con Isee fino a 21.052,64 euro"; if(g==="Trento") return "Libri in comodato per tutti (superiori: primi due anni)"; if(g==="Bolzano") return "Libri in comodato per tutti"; return `Aiuto fino a ${eur(SOGLIA[g])} euro di Isee${FISSO.has(g)?'':' · importo variabile'}`; }
+let proj, path, mapW=0, M1=null, rS=null, mode='both';
+const CS=['--blue-5','--blue-4','--blue-3','--blue-2','--blue-1'], BR=[20,30,40,55], cls=v=>CS[d3.bisectRight(BR,v)];
+function callout(svg, name, dx, dy, text, w){
+  const f=GEO.features.find(f=>f.properties.n===name); const [cx,cy]=path.centroid(f); const tx=Math.max(4,Math.min(w-4,cx+dx)), ty=cy+dy;
+  svg.append('line').attr('x1',cx).attr('y1',cy).attr('x2',tx).attr('y2',ty).style('stroke','var(--fg)').style('stroke-width',.75);
+  const L=text.split('\n'); const t=svg.append('text').attr('class','callout halo').attr('x',tx).attr('y',dy<0?ty-4-14*(L.length-1):ty+12).attr('text-anchor',dx<0?'start':'end');
+  L.forEach((s,i)=>t.append('tspan').attr('x',tx).attr('dy',i?14:0).text(s));
+}
+function build2(w){
+  const h=Math.round(Math.min(640,w*1.2)); const svg=frame(mapEl,w,h); const tip=tipFor(mapEl);
+  proj=d3.geoConicConformal().parallels([38,46]).rotate([-12.5,0]).fitExtent([[w*0.17,8],[w-6,h-8]],GEO); path=d3.geoPath(proj);
+  const show=(e,g)=>{ const [x,y]=d3.pointer(e,mapEl); const b=BY[g]; tip.show(`<b>${g}</b><span style="color:var(--blue)">Regione:</span> ${regola(g)}<br><span style="color:var(--red)">Stato:</span> ${b?f2(b.v)+' euro per studente':'fuori dal riparto'}`,x,y); };
+  const ps=svg.append('g').selectAll('path').data(GEO.features).join('path').attr('d',path).style('stroke','var(--card)').style('stroke-width',.9).style('stroke-linejoin','round')
+    .on('pointerenter pointermove',function(e,d){ d3.select(this).style('stroke','var(--fg)').style('stroke-width',1.5).raise(); show(e,d.properties.n); })
+    .on('pointerleave',function(){ d3.select(this).style('stroke','var(--card)').style('stroke-width',.9); tip.hide(); });
+  rS=d3.scaleSqrt([0,70],[0,Math.max(9,w*0.03)]);
+  const nudge={"Campania":[-4,4],"Lazio":[-6,4],"Toscana":[-6,4],"Liguria":[0,-2],"Calabria":[3,6],"Sardegna":[2,0],"Emilia-Romagna":[0,4]};
+  const cs=svg.append('g').selectAll('circle').data(GEO.features.filter(f=>BY[f.properties.n])).join('circle')
+    .attr('cx',d=>path.centroid(d)[0]+(nudge[d.properties.n]||[0,0])[0]).attr('cy',d=>path.centroid(d)[1]+(nudge[d.properties.n]||[0,0])[1])
+    .attr('r',0).style('fill','var(--red)').style('fill-opacity',.55).style('stroke','var(--red)').style('stroke-width',1.2)
+    .on('pointerenter pointermove',(e,d)=>show(e,d.properties.n)).on('pointerleave',()=>tip.hide());
+  cs.transition().delay((d,i)=>RM?0:300+i*45).duration(RM?0:600).ease(d3.easeBackOut).attr('r',d=>rS(BY[d.properties.n].v));
+  callout(svg,"Valle d'Aosta",-w*0.17+6,-30,'Valle d\'Aosta, Trento\ne Bolzano: libri per tutti',w);
+  callout(svg,F9hi.reg,w*0.16,w<520?30:-64,`${F9hi.reg}: lo Stato\nmanda ${f0(F9hi.v)} euro\na studente`,w);
+  // legenda dei cerchi
+  const lg=svg.append('g').attr('class','clg').attr('transform',`translate(4,${h-8})`);
+  lg.append('text').attr('x',0).attr('y',-rS(60)*2-8).style('font-size','11px').style('font-weight',600).style('fill','var(--fg)').text('Stato, euro per studente');
+  let lx=0; [15,30,60].forEach(v=>{ const r=rS(v); lg.append('circle').attr('cx',lx+r).attr('cy',-r).attr('r',r).style('fill','var(--red)').style('fill-opacity',.4).style('stroke','var(--red)');
+    lg.append('text').attr('x',lx+r).attr('y',-2*r-1).attr('text-anchor','middle').style('font-size','10px').style('fill','var(--muted)'); lg.append('text').attr('x',lx+2*r+3).attr('y',-3).style('font-size','10.5px').style('fill','var(--muted)').text(v); lx+=2*r+22; });
+  return {svg,ps,cs,lg};
+}
+function draw2(rebuild){
+  const w=mapEl.clientWidth, isee=+vIsee.value; if(!w) return;
+  document.getElementById('v-iseev').textContent=f0(isee)+' euro';
+  const on=REG.filter(g=>statoReg(g,isee)!=='no');
+  document.getElementById('k-n').textContent=on.length;
+  document.getElementById('k-t').textContent=`territori su 21 in cui la Regione ti aiuta con un Isee di ${f0(isee)} euro`;
+  if(rebuild||!M1||mapW!==w){ mapW=w; M1=build2(w); }
+  M1.ps.style('fill',d=>{const g=d.properties.n; if(mode==='st') return BY[g]?`var(${cls(BY[g].v)})`:'var(--grey-5)'; return statoReg(g,isee)==='no'?'var(--grey-5)':`var(${clOf(g).c})`;}).style('transition','fill .35s');
+  M1.cs.style('display',mode==='both'?null:'none'); M1.lg.style('display',mode==='both'?null:'none');
+  M1.svg.attr('aria-label',`Con Isee ${f0(isee)} euro aiutano ${on.length} territori su 21`);
+}
+vIsee.addEventListener('input',()=>draw2(false));
+const KEYREG=document.getElementById('v2key').innerHTML;
+const KEYST='<span style="font-weight:600;color:var(--fg)">Stato, euro per studente:</span>'+['meno di 20','20-30','30-40','40-55','oltre 55'].map((t,i)=>`<span><i style="background:var(${CS[i]})"></i>${t}</span>`).join('')+'<span><i style="background:var(--grey-5)"></i>fuori dal riparto</span>';
+document.querySelectorAll('#v2 .seg button').forEach(btn=>btn.addEventListener('click',()=>{ mode=btn.dataset.m; document.querySelectorAll('#v2 .seg button').forEach(x=>x.setAttribute('aria-pressed',x===btn)); 
+  if(mode==='st') stopPlay();
+  document.getElementById('isee-box').hidden=mode==='st'; document.getElementById('kpi-n').hidden=mode==='st'; document.getElementById('kpi-x').hidden=mode==='reg';
+  document.getElementById('v2key').innerHTML=mode==='st'?KEYST:KEYREG; draw2(false); if(mode!=='st') marks(); }));
+onResize(mapEl,()=>{draw2(true);marks();});
+let playing=null; const pb=document.getElementById('play2');
+function stopPlay(){ if(playing){cancelAnimationFrame(playing);playing=null;} pb.querySelector('span').textContent='Play'; }
+pb.addEventListener('click',()=>{ if(playing){stopPlay();return;} pb.querySelector('span').textContent='Pausa'; let v=+vIsee.value>=54000?0:+vIsee.value; let last=performance.now();
+  const step=t=>{ v=Math.min(55000,v+(t-last)*8); last=t; vIsee.value=Math.round(v/250)*250; draw2(false); if(v<55000) playing=requestAnimationFrame(step); else stopPlay(); }; playing=requestAnimationFrame(step); });
+vIsee.addEventListener('pointerdown',stopPlay);
+onView(mapEl,()=>{ const kx=document.getElementById('k-x'); kx.dataset.cur=0; countUp(kx,F9[0].v/F9[F9.length-1].v,1,'','<small>volte</small>',1000); if(RM) return; draw2(true); vIsee.value=0; draw2(false); setTimeout(()=>{ if(!playing) pb.click(); },3200); });
+
+
+}).catch(e=>Radar.fail("main.radar",e));
+</script>
+</body>
+</html>

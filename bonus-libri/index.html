@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Il bonus libri dal 2027 – Radar QN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,400;6..72,700&display=swap">
+<link rel="stylesheet" href="../assets/radar.css">
+<link rel="stylesheet" href="../assets/costi.css">
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="../assets/radar.js"></script>
+<script src="../assets/costi.js"></script>
+</head>
+<body>
+<main class="radar" id="v4">
+  <header>
+    <h1 class="r-title">Il nuovo bonus libri vale meno di 16 euro a studente</h1>
+    <p class="r-sub">Fondo nazionale dal 2027 diviso per la platea stimata, a confronto con la spesa media per i libri di una prima superiore</p>
+  </header>
+  <div class="eq" style="margin-top:18px">
+    <div class="box"><svg class="ico lg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15 8.5a3.5 3.5 0 1 0 0 7M7.5 11h6M7.5 13h6"/></svg><div><b data-k="fondo">&nbsp;</b><span>euro l'anno, come prima</span></div></div>
+    <div class="op" aria-hidden="true">÷</div>
+    <div class="box"><svg class="ico lg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6M18 20a6 6 0 0 0-3-5"/></svg><div><b data-k="platea">&nbsp;</b><span>studenti con Isee fino a 40mila</span></div></div>
+    <div class="op" aria-hidden="true">=</div>
+    <div class="box res"><div><b data-k="bon">&nbsp;</b><span>a studente</span></div></div>
+  </div>
+  <div class="chart" id="v4c"></div>
+  <div class="row" style="margin-top:12px"><span class="chip">Soglia Isee: da 30mila a 40mila euro</span><span class="chip">Classi: I media, I e III superiore</span></div>
+  <footer class="r-foot"><span>Fonte: Camera dei deputati, dossier sul decreto-legge 170/2026 (dati Aie)</span><span>Elaborazione Radar – QN</span></footer>
+</main>
+<script>
+Costi.load({geo:false}).then(DATA=>{
+/* ---------- 4 · bonus, libri sullo scaffale ---------- */
+const BON=DATA.P.fondo27/DATA.P.platea, SPESA=DATA.P.spesa1sup;
+const mil=v=>v>=1e6?(v%1e6?f1(v/1e6):f0(v/1e6))+' milioni':f0(v);
+{ const eq=document.querySelector('#v4 .eq'); eq.setAttribute('aria-label',`${mil(DATA.P.fondo27)} di euro diviso ${f0(DATA.P.platea)} studenti uguale ${f2(BON)} euro a studente`);
+  eq.querySelector('[data-k=fondo]').textContent=mil(DATA.P.fondo27); eq.querySelector('[data-k=platea]').textContent=f0(DATA.P.platea); eq.querySelector('[data-k=bon]').textContent=f2(BON)+' €'; }
+const c4=document.getElementById('v4c');
+function draw4(animate){
+  const w=c4.clientWidth; if(!w) return; const PER=10, n=Math.ceil(SPESA/PER); // 32 libri da 10 euro
+  const bw=(w-4)/n, gap=Math.max(1.5,bw*.12), H=96, R=Math.round(Math.min(82,w*.17)), top=2*R+40, base=top+H, h=base+46, svg=frame(c4,w,h);
+  const rnd=i=>{const s=Math.sin(i*9.13)*43758.5453; return s-Math.floor(s);};
+  const books=d3.range(n).map(i=>{ const val=Math.min(PER, SPESA-i*PER); const hh=H*(0.66+0.34*rnd(i)); const red=Math.max(0,Math.min(1,(BON-i*PER)/PER)); return {i,val,hh,red,w:(bw-gap)*(val/PER)}; });
+  const defs=svg.append('defs');
+  books.forEach(b=>{ if(b.red>0&&b.red<1){ const g=defs.append('linearGradient').attr('id','rg'+b.i).attr('x1',0).attr('x2',1); g.append('stop').attr('offset',b.red).style('stop-color','var(--blue)'); g.append('stop').attr('offset',b.red).style('stop-color','var(--grey-4)'); } });
+  svg.append('line').attr('x1',0).attr('x2',w).attr('y1',base+1.5).attr('y2',base+1.5).style('stroke','var(--fg)').style('stroke-width',3);
+  const D=animate&&!RM;
+  const g=svg.selectAll('g.bk').data(books).join('g').attr('class','bk').attr('transform',b=>`translate(${2+b.i*bw},0)`);
+  const shade=b=>b.red>=1?'var(--blue)':b.red>0?`url(#rg${b.i})`:(b.i%3===0?'var(--grey-3)':b.i%3===1?'var(--grey-4)':'var(--grey-5)');
+  const rect=g.append('rect').attr('width',b=>b.w).attr('height',b=>b.hh).attr('rx',Math.min(2,bw/5)).style('fill',shade).attr('y',b=>D?-b.hh-10:base-b.hh).style('opacity',D?0:1);
+  g.append('rect').attr('width',b=>b.w).attr('height',Math.max(2,bw*.18)).attr('y',b=>(D?-b.hh-10:base-b.hh)+b.hh*.18).style('fill','var(--card)').style('opacity',D?0:.55).attr('class','band');
+  if(D){ rect.transition().delay(b=>b.i*35).duration(500).ease(d3.easeBounceOut).attr('y',b=>base-b.hh).style('opacity',1);
+    g.select('.band').transition().delay(b=>b.i*35).duration(500).ease(d3.easeBounceOut).attr('y',b=>base-b.hh+b.hh*.18).style('opacity',.55); }
+  // lente: ingrandimento dei libri pagati dal bonus
+  const P=[2+bw*0.8, base-d3.max(books.slice(0,2),b=>b.hh)-2], cx=2+bw*1.6+R*1.75, cy=R+8;
+  const dx=P[0]-cx, dy=P[1]-cy, dd=Math.hypot(dx,dy), al=Math.atan2(dy,dx), be=Math.acos(R/dd);
+  const T1=[cx+R*Math.cos(al+be),cy+R*Math.sin(al+be)], T2=[cx+R*Math.cos(al-be),cy+R*Math.sin(al-be)];
+  const zg=svg.append('g').style('opacity',D?0:1);
+  zg.append('path').attr('d',`M${P}L${T1}L${T2}Z`).style('fill','var(--blue)').style('fill-opacity',.08);
+  [T1,T2].forEach(T=>zg.append('line').attr('x1',P[0]).attr('y1',P[1]).attr('x2',T[0]).attr('y2',T[1]).style('stroke','var(--blue)').style('stroke-width',1).style('stroke-dasharray','3 3'));
+  const lens=zg.append('g').attr('transform',`translate(${cx},${cy})`); const inner=lens.append('g');
+  defs.append('clipPath').attr('id','lensclip').append('circle').attr('r',R-1.5);
+  inner.append('circle').attr('r',R).style('fill','var(--card)');
+  const k=2*R/(2.5*bw), zb=inner.append('g').attr('clip-path','url(#lensclip)');
+  books.slice(0,3).forEach((b,ii)=>{ const x=(ii*bw-1.25*bw)*k, y=-R*(.05+.5*(b.hh-H*.66)/(H*.34)), ww=b.w*k, hh=b.hh*k;
+    zb.append('rect').attr('x',x).attr('y',y).attr('width',ww).attr('height',hh).attr('rx',4).style('fill',b.red>=1?'var(--blue)':b.red>0?`url(#rg${b.i})`:'var(--grey-3)');
+    zb.append('rect').attr('x',x).attr('y',y+hh*.18).attr('width',ww).attr('height',Math.max(4,bw*.18*k)).style('fill','var(--card)').style('opacity',.55); });
+  inner.append('circle').attr('r',R).style('fill','none').style('stroke','var(--blue)').style('stroke-width',3);
+  lens.append('line').attr('x1',R*.71).attr('y1',R*.71).attr('x2',R*1.05).attr('y2',R*1.05).style('stroke','var(--blue)').style('stroke-width',7).style('stroke-linecap','round');
+  const tx=cx+R+20, big=Math.round(Math.min(64,Math.max(44,w*.085)));
+  const pc=zg.append('text').attr('x',tx).attr('y',cy+big*.2).style('font-size',big+'px').style('font-weight',800).style('letter-spacing','-.02em').style('fill','var(--blue)').text(D?'0,0%':f1(BON/SPESA*100)+'%');
+  zg.append('text').attr('x',tx).attr('y',cy+big*.2+22).style('font-size','13px').style('font-weight',700).style('fill','var(--fg)').text('del costo dei libri');
+  zg.append('text').attr('x',tx).attr('y',cy+big*.2+40).style('font-size','12.5px').style('fill','var(--muted)').text(w<520?`${f2(BON)} € su ${f2(SPESA)} €`:`il bonus: ${f2(BON)} euro su ${f2(SPESA)}`);
+  if(D){ const t0=n*35+1100; lens.attr('transform',`translate(${cx},${cy}) scale(.2)`);
+    zg.transition().delay(t0).duration(250).style('opacity',1);
+    lens.transition().delay(t0).duration(650).ease(d3.easeBackOut.overshoot(1.4)).attr('transform',`translate(${cx},${cy}) scale(1)`);
+    setTimeout(()=>{ pc.node().dataset.cur=0; countUp(pc.node(),BON/SPESA*100,1,'','%',900); }, t0+300); }
+  svg.append('text').attr('x',w).attr('y',base+20).attr('text-anchor','end').style('font-size','12px').style('fill','var(--muted)').text(w<520?`spesa media, prima superiore: ${f2(SPESA)} €`:`la spesa media per i libri di una prima superiore: ${f2(SPESA)} euro`);
+  svg.append('text').attr('x',0).attr('y',base+38).style('font-size','11px').style('fill','var(--muted)').text('ogni libro = 10 euro di spesa');
+}
+onResize(c4,()=>draw4(false)); onView(c4,()=>draw4(true));
+
+}).catch(e=>Radar.fail("main.radar",e));
+</script>
+</body>
+</html>

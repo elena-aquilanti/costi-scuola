@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Il carovita a scuola – Radar QN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,400;6..72,700&display=swap">
+<link rel="stylesheet" href="../assets/radar.css">
+<link rel="stylesheet" href="../assets/costi.css">
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script src="../assets/radar.js"></script>
+<script src="../assets/costi.js"></script>
+</head>
+<body>
+<main class="radar" id="v3">
+  <header>
+    <h1 class="r-title">In dieci anni libri sempre più costosi, ma nel 2026 corre il carovita</h1>
+    <p class="r-sub" id="s3"></p>
+  </header>
+  <div class="tabs" role="tablist" style="margin-top:14px"><button role="tab" id="t26" aria-selected="true">2026, mese per mese</button><button role="tab" id="t10" aria-selected="false">Dal 2015 a oggi</button></div>
+  <div class="kpirow">
+    <div class="kpi red"><div class="ring"><svg class="ico lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.4 10h10l2-7H6.2"/><circle cx="9" cy="19" r="1.3"/><circle cx="17" cy="19" r="1.3"/></svg><div class="n" id="k3g">&nbsp;</div></div><div class="t" id="k3gt"></div></div>
+    <div class="kpi blue"><div class="ring"><svg class="ico lg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8 7h8"/></svg><div class="n" id="k3l">&nbsp;</div></div><div class="t" id="k3lt"></div></div>
+  </div>
+  <div class="chart" id="v3c"></div>
+  <footer class="r-foot"><span>Fonte: Istat, indice dei prezzi al consumo Nic</span><span>Elaborazione Radar – QN</span></footer>
+</main>
+<script>
+Costi.load({geo:false}).then(DATA=>{
+/* ---------- 3 · carovita, due viste ---------- */
+const MN=['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'], MNL=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+const MESI=DATA.mesi.map(m=>MN[+m.slice(5)-1]), MESIL=DATA.mesi.map(m=>MNL[+m.slice(5)-1]), ANNO=DATA.mesi[0].slice(0,4);
+const GM=DATA.mens['Indice generale'], BM=DATA.mens['Libri didattici e libri di testo'], A0=DATA.ann[0], A1=DATA.ann[DATA.ann.length-1];
+const pctUp=(a,b)=>(b/a-1)*100;
+const c3=document.getElementById('v3c'); let view3='26';
+const K3={ '26':{s:`Variazione dei prezzi rispetto allo stesso mese dell'anno prima, in %, ${MESIL[0]}-${MESIL[MESIL.length-1]} ${ANNO}`, g:GM[GM.length-1], l:BM[BM.length-1], gt:`tutti i beni e servizi a ${MESIL[MESIL.length-1]} ${ANNO} (a ${MESIL[0]} +${f1(GM[0])}%)`, lt:`libri di testo a ${MESIL[MESIL.length-1]} ${ANNO}`},
+           '10':{s:`Indice dei prezzi, ${A0.a} = 100. Aumento dal ${A0.a} al ${A1.a}`, g:pctUp(A0.g,A1.g), l:pctUp(A0.l,A1.l), gt:`tutti i beni e servizi dal ${A0.a} al ${A1.a}`, lt:`libri di testo dal ${A0.a} al ${A1.a}`} };
+function kpi3(animate){ const k=K3[view3]; document.getElementById('s3').textContent=k.s; document.getElementById('k3gt').textContent=k.gt; document.getElementById('k3lt').textContent=k.lt;
+  const g=document.getElementById('k3g'), l=document.getElementById('k3l'); if(!animate){g.dataset.cur=k.g;l.dataset.cur=k.l;} countUp(g,k.g,1,'+','%',animate?900:0); countUp(l,k.l,1,'+','%',animate?900:0); }
+function draw3(animate){
+  const w=c3.clientWidth; if(!w) return; const h=Math.max(260,Math.min(340,w*.55)), m={l:34,r:w<480?78:116,t:26,b:28}, svg=frame(c3,w,h);
+  const D=animate&&!RM?1400:0; let x,y,G,B,X;
+  if(view3==='26'){ G=GM; B=BM; X=MESI; x=d3.scalePoint(MESI,[m.l,w-m.r]); y=d3.scaleLinear([0,Math.max(6,Math.ceil(d3.max(G.concat(B))))],[h-m.b,m.t]); }
+  else { G=DATA.ann.map(d=>d.g); B=DATA.ann.map(d=>d.l); X=DATA.ann.map(d=>d.a); x=d3.scalePoint(X,[m.l,w-m.r]); y=d3.scaleLinear([95,Math.ceil(d3.max(G.concat(B))/5)*5+5],[h-m.b,m.t]); }
+  svg.append('g').attr('class','ax').attr('transform',`translate(${m.l},0)`).call(d3.axisLeft(y).ticks(6).tickFormat(f0).tickSize(-(w-m.l-m.r)).tickPadding(6)).call(g=>g.select('.domain').remove()).call(g=>g.selectAll('line').style('stroke','var(--grid)'));
+  const tv=view3==='26'?(w<480?MESI.filter((d,i)=>i%2===0||i===9):MESI):(w<480?X.filter((d,i)=>i%2===0):X);
+  svg.append('g').attr('class','ax').attr('transform',`translate(0,${h-m.b})`).call(d3.axisBottom(x).tickSize(0).tickPadding(8).tickValues(tv).tickFormat(v=>view3==='10'&&w<480?"’"+String(v).slice(2):v)).select('.domain').remove();
+  const xi=(d,i)=>x(X[i]);
+  const ar=d3.area().x(xi).y0((d,i)=>y(B[i])).y1(d=>y(d)).curve(d3.curveMonotoneX);
+  const over=G.map((g,i)=>g>B[i]), i0=over.indexOf(true);
+  if(view3==='26') ar.defined((d,i)=>i>=i0);
+  const area=svg.append('path').attr('d',ar(G)).style('fill',view3==='26'?'var(--red)':'var(--grey-3)').style('opacity',0);
+  const ln=d3.line().x(xi).y(d=>y(d)).curve(d3.curveMonotoneX);
+  const end=X[X.length-1], li=X.length-1;
+  [[B,'var(--blue)','Libri di testo','Libri'],[G,'var(--red)','Tutti i beni e servizi','Tutti i prezzi']].forEach(([s,c,n,ns])=>{
+    const p=svg.append('path').attr('d',ln(s)).style('fill','none').style('stroke',c).style('stroke-width',2.6);
+    const Lg=p.node().getTotalLength(); if(D){p.attr('stroke-dasharray',Lg).attr('stroke-dashoffset',Lg).transition().duration(D).ease(d3.easeCubicInOut).attr('stroke-dashoffset',0);}
+    const g=svg.append('g').style('opacity',D?0:1); g.transition().delay(D).duration(300).style('opacity',1);
+    g.append('circle').attr('cx',x(end)).attr('cy',y(s[li])).attr('r',4.5).style('fill',c);
+    const lab=view3==='26'?`+${f1(s[li])}%`:f1(s[li]);
+    const off=view3==='10'?(c==='var(--blue)'?-6:10):4;
+    g.append('text').attr('class','halo').attr('x',x(end)+8).attr('y',y(s[li])+off).style('font-size','13px').style('font-weight',800).style('fill',c).text(lab);
+    g.append('text').attr('class','halo').attr('x',x(end)+8).attr('y',y(s[li])+off+14).style('font-size','11px').style('fill',c).text(w<480?ns:n);
+  });
+  area.transition().delay(D).duration(500).style('opacity',.12);
+  const an=svg.append('g').style('opacity',D?0:1); an.transition().delay(D*.5).duration(300).style('opacity',1);
+  let ax,ay,txt;
+  if(view3==='26'){ const a=i0-1, da=G[a]-B[a], db=G[i0]-B[i0], k=da/(da-db); ax=x(X[a])+(x(X[i0])-x(X[a]))*k; ay=y(B[a]+(B[i0]-B[a])*k); txt=`A ${MESIL[i0]} il sorpasso`; }
+  else { const yrs=X.filter((d,i)=>over[i]); const ia=X.indexOf(yrs[0]), ib=X.indexOf(yrs[yrs.length-1]); ax=(x(X[ia])+x(X[ib]))/2; ay=y((G[ia]+G[ib])/2); txt=(yrs.length>1?`${yrs[0]}-${yrs[yrs.length-1]}`:`${yrs[0]}`)+': i prezzi superano i libri'; }
+  an.append('line').attr('x1',ax).attr('x2',ax).attr('y1',ay-6).attr('y2',m.t-4).style('stroke','var(--fg)').style('stroke-width',.75);
+  an.append('circle').attr('cx',ax).attr('cy',ay).attr('r',3).style('fill','var(--fg)');
+  an.append('text').attr('class','halo').attr('x',ax+(view3==='10'?-6:6)).attr('y',m.t).attr('text-anchor',view3==='10'?'end':'start').style('font-size','12px').style('font-weight',600).style('fill','var(--fg)').text(txt);
+}
+const t26=document.getElementById('t26'), t10=document.getElementById('t10');
+function tab3(v){ view3=v; t26.setAttribute('aria-selected',v==='26'); t10.setAttribute('aria-selected',v==='10'); kpi3(true); draw3(true); }
+t26.addEventListener('click',()=>tab3('26')); t10.addEventListener('click',()=>tab3('10'));
+kpi3(false); onResize(c3,()=>draw3(false));
+onView(c3,()=>{ draw3(true); ['k3g','k3l'].forEach(id=>document.getElementById(id).dataset.cur=0); kpi3(true); });
+
+
+}).catch(e=>Radar.fail("main.radar",e));
+</script>
+</body>
+</html>
